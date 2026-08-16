@@ -1,8 +1,7 @@
 #!/usr/bin/env node
+// @ts-check
 
-/* eslint-disable no-process-exit */
-
-var extract = require('./')
+import extract from '.'
 
 var args = process.argv.slice(2)
 var source = args[0]
@@ -12,8 +11,7 @@ if (!source) {
   process.exit(1)
 }
 
-extract(source, { dir: dest })
-  .catch(function (err) {
-    console.error('error!', err)
-    process.exit(1)
-  })
+extract(source, { dir: dest }).catch(function (err) {
+  console.error('error!', err)
+  process.exit(1)
+})

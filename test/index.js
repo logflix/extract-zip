@@ -1,42 +1,66 @@
-const extract = require('../')
-const fs = require('fs-extra')
-const os = require('os')
-const path = require('path')
-const test = require('ava')
+// @ts-check
 
-const catsZip = path.join(__dirname, 'cats.zip')
-const githubZip = path.join(__dirname, 'github.zip')
-const noPermissionsZip = path.join(__dirname, 'no-permissions.zip')
-const subdirZip = path.join(__dirname, 'file-in-subdir-without-subdir-entry.zip')
-const symlinkDestZip = path.join(__dirname, 'symlink-dest.zip')
-const symlinkZip = path.join(__dirname, 'symlink.zip')
-const brokenZip = path.join(__dirname, 'broken.zip')
+import extract from '../index.js'
+import fs from 'node:fs/promises'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import test from 'ava'
+
+const catsZip = path.join(import.meta.dirname, 'cats.zip')
+const githubZip = path.join(import.meta.dirname, 'github.zip')
+const noPermissionsZip = path.join(import.meta.dirname, 'no-permissions.zip')
+const subdirZip = path.join(import.meta.dirname, 'file-in-subdir-without-subdir-entry.zip')
+const symlinkDestZip = path.join(import.meta.dirname, 'symlink-dest.zip')
+const symlinkZip = path.join(import.meta.dirname, 'symlink.zip')
+const brokenZip = path.join(import.meta.dirname, 'broken.zip')
 
 const relativeTarget = './cats'
 
-async function mkdtemp (t, suffix) {
+/**
+ * @param {import("ava").ExecutionContext} t
+ * @param {string} suffix
+ */
+async function mkdtemp(t, suffix) {
   return fs.mkdtemp(path.join(os.tmpdir(), `extract-zip-${suffix}`))
 }
 
-async function tempExtract (t, suffix, zipPath) {
+/**
+ * @param {import("ava").ExecutionContext} t
+ * @param {string} suffix
+ * @param {string} zipPath
+ */
+async function tempExtract(t, suffix, zipPath) {
   const dirPath = await mkdtemp(t, suffix)
   await extract(zipPath, { dir: dirPath })
   return dirPath
 }
 
-async function pathExists (t, pathToCheck, message) {
-  const exists = await fs.pathExists(pathToCheck)
-  t.true(exists, message)
+/**
+ * @param {import("ava").ExecutionContext} t
+ * @param {string} pathToCheck
+ * @param {string} message
+ */
+async function pathExists(t, pathToCheck, message) {
+  await t.notThrowsAsync(() => fs.access(pathToCheck), message)
 }
 
-async function pathDoesntExist (t, pathToCheck, message) {
-  const exists = await fs.pathExists(pathToCheck)
-  t.false(exists, message)
+/**
+ * @param {import("ava").ExecutionContext} t
+ * @param {string} pathToCheck
+ * @param {string} message
+ */
+async function pathDoesntExist(t, pathToCheck, message) {
+  await t.throwsAsync(() => fs.access(pathToCheck), undefined, message)
 }
 
-async function assertPermissions (t, pathToCheck, expectedMode) {
+/**
+ * @param {import("ava").ExecutionContext} t
+ * @param {string} pathToCheck
+ * @param {number} expectedMode
+ */
+async function assertPermissions(t, pathToCheck, expectedMode) {
   const stats = await fs.stat(pathToCheck)
-  const actualMode = (stats.mode & 0o777)
+  const actualMode = stats.mode & 0o777
   t.is(actualMode, expectedMode)
 }
 
@@ -84,13 +108,9 @@ test('verify github zip extraction worked', async t => {
 
 test('opts.onEntry', async t => {
   const dirPath = await mkdtemp(t, 'onEntry')
-  const actualEntries = []
-  const expectedEntries = [
-    'symlink/',
-    'symlink/foo.txt',
-    'symlink/foo_symlink.txt'
-  ]
-  const onEntry = function (entry) {
+  const actualEntries = /** @type {string[]} */ ([])
+  const expectedEntries = ['symlink/', 'symlink/foo.txt', 'symlink/foo_symlink.txt']
+  const onEntry = function (/** @type {import("yauzl").Entry} */ entry) {
     actualEntries.push(entry.fileName)
   }
   await extract(symlinkZip, { dir: dirPath, onEntry })
@@ -98,12 +118,12 @@ test('opts.onEntry', async t => {
 })
 
 test('relative target directory', async t => {
-  await fs.remove(relativeTarget)
+  await fs.rm(relativeTarget, { force: true, recursive: true })
   await t.throwsAsync(extract(catsZip, { dir: relativeTarget }), {
     message: 'Target directory is expected to be absolute'
   })
-  await pathDoesntExist(t, path.join(__dirname, relativeTarget), 'folder not created')
-  await fs.remove(relativeTarget)
+  await pathDoesntExist(t, path.join(import.meta.dirname, relativeTarget), 'folder not created')
+  await fs.rm(relativeTarget, { force: true, recursive: true })
 })
 
 if (process.platform !== 'win32') {

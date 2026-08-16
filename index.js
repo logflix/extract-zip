@@ -1,28 +1,59 @@
-const debug = require('debug')('extract-zip')
-// eslint-disable-next-line node/no-unsupported-features/node-builtins
-const { createWriteStream, promises: fs } = require('fs')
-const getStream = require('get-stream')
-const path = require('path')
-const { promisify } = require('util')
-const stream = require('stream')
-const yauzl = require('yauzl')
+// @ts-check
 
-const openZip = promisify(yauzl.open)
-const pipeline = promisify(stream.pipeline)
+import createDebug from 'debug'
+import { createWriteStream } from 'node:fs'
+import * as fs from 'node:fs/promises'
+import getStream from 'get-stream'
+import * as path from 'node:path'
+import * as stream from 'node:stream/promises'
+import yauzl from 'yauzl'
+
+const debug = createDebug('extract-zip')
+
+/**
+ * @typedef Options
+ *
+ * @property {string} dir
+ *   The path to the directory where the extracted files are written
+ *
+ * @property {string} [defaultDirMode]
+ *   Directory Mode (permissions), defaults to `"0o755"`
+ *
+ * @property {string} [defaultFileMode]
+ *   File Mode (permissions), defaults to `"0o644"`
+ *
+ * @property {(entry: import("yauzl").Entry, zipfile?: import("yauzl").ZipFile) => void} [onEntry]
+ *   If present, will be called with (entry, zipfile),
+ *   entry is every entry from the zip file forwarded
+ *   from the entry event from yauzl. zipfile is the
+ *   yauzl instance
+ */
 
 class Extractor {
-  constructor (zipPath, opts) {
+  /**
+   * @param {string} zipPath
+   * @param {Options} opts
+   */
+  constructor(zipPath, opts) {
     this.zipPath = zipPath
-    this.opts = opts
+    this.opts = { defaultDirMode: '0o755', defaultFileMode: '0o644', ...opts }
   }
 
-  async extract () {
+  /**
+   * @returns {Promise<void>}
+   */
+  async extract() {
     debug('opening', this.zipPath, 'with opts', this.opts)
 
-    this.zipfile = await openZip(this.zipPath, { lazyEntries: true })
+    this.zipfile = await yauzl.openPromise(this.zipPath, { lazyEntries: true })
     this.canceled = false
 
     return new Promise((resolve, reject) => {
+      if (!this.zipfile) {
+        reject(new Error('zipfile not opened'))
+        return
+      }
+
       this.zipfile.on('error', err => {
         this.canceled = true
         reject(err)
@@ -36,7 +67,12 @@ class Extractor {
         }
       })
 
-      this.zipfile.on('entry', async entry => {
+      this.zipfile.on('entry', async (/** @type {import("yauzl").Entry} */ entry) => {
+        if (!this.zipfile) {
+          reject(new Error('zipfile not opened'))
+          return
+        }
+
         /* istanbul ignore if */
         if (this.canceled) {
           debug('skipping entry', entry.fileName, { cancelled: this.canceled })
@@ -74,7 +110,15 @@ class Extractor {
     })
   }
 
-  async extractEntry (entry) {
+  /**
+   * @param {import("yauzl").Entry} entry
+   * @returns {Promise<void>}
+   */
+  async extractEntry(entry) {
+    if (!this.zipfile) {
+      throw new Error('zipfile not opened')
+    }
+
     /* istanbul ignore if */
     if (this.canceled) {
       debug('skipping entry extraction', entry.fileName, { cancelled: this.canceled })
@@ -88,7 +132,7 @@ class Extractor {
     const dest = path.join(this.opts.dir, entry.fileName)
 
     // convert external file attr int into a fs stat mode int
-    const mode = (entry.externalFileAttributes >> 16) & 0xFFFF
+    const mode = (entry.externalFileAttributes >> 16) & 0xffff
     // check if it's a symlink or dir (using stat mode constants)
     const IFMT = 61440
     const IFDIR = 16384
@@ -104,7 +148,7 @@ class Extractor {
     // check for windows weird way of specifying a directory
     // https://github.com/maxogden/extract-zip/issues/13#issuecomment-154494566
     const madeBy = entry.versionMadeBy >> 8
-    if (!isDir) isDir = (madeBy === 0 && entry.externalFileAttributes === 16)
+    if (!isDir) isDir = madeBy === 0 && entry.externalFileAttributes === 16
 
     debug('extracting entry', { filename: entry.fileName, isDir: isDir, isSymlink: symlink })
 
@@ -113,6 +157,7 @@ class Extractor {
     // always ensure folders are created
     const destDir = isDir ? dest : path.dirname(dest)
 
+    /** @type {import("fs").MakeDirectoryOptions} */
     const mkdirOptions = { recursive: true }
     if (isDir) {
       mkdirOptions.mode = procMode
@@ -122,18 +167,24 @@ class Extractor {
     if (isDir) return
 
     debug('opening read stream', dest)
-    const readStream = await promisify(this.zipfile.openReadStream.bind(this.zipfile))(entry)
+    const readStream = await this.zipfile.openReadStreamPromise.bind(this.zipfile)(entry)
 
     if (symlink) {
       const link = await getStream(readStream)
       debug('creating symlink', link, dest)
       await fs.symlink(link, dest)
     } else {
-      await pipeline(readStream, createWriteStream(dest, { mode: procMode }))
+      await stream.pipeline(readStream, createWriteStream(dest, { mode: procMode }))
     }
   }
 
-  getExtractedMode (entryMode, isDir) {
+  /**
+   *
+   * @param {number} entryMode
+   * @param {boolean} isDir
+   * @returns {number}
+   */
+  getExtractedMode(entryMode, isDir) {
     let mode = entryMode
     // Set defaults, if necessary
     if (mode === 0) {
@@ -160,7 +211,11 @@ class Extractor {
   }
 }
 
-module.exports = async function (zipPath, opts) {
+/**
+ * @param {string} zipPath
+ * @param {Options} opts
+ */
+export default async function (zipPath, opts) {
   debug('creating target directory', opts.dir)
 
   if (!path.isAbsolute(opts.dir)) {
