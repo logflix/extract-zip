@@ -4,9 +4,8 @@ Unzip written in pure JavaScript. Extracts a zip into a directory. Available as 
 
 Uses the [`yauzl`](http://npmjs.org/yauzl) ZIP parser.
 
-[![NPM](https://nodei.co/npm/extract-zip.png?global=true)](https://npm.im/extract-zip)
-[![Uses JS Standard Style](https://cdn.jsdelivr.net/gh/standard/standard/badge.svg)](https://github.com/standard/standard)
-[![Build Status](https://github.com/maxogden/extract-zip/workflows/CI/badge.svg)](https://github.com/maxogden/extract-zip/actions?query=workflow%3ACI)
+[![NPM](https://nodei.co/npm/@logflix/extract-zip.png?global=true)](https://npm.im/@logflix/extract-zip)
+[![Build Status](https://github.com/logflix/extract-zip/workflows/CI/badge.svg)](https://github.com/logflix/extract-zip/actions?query=workflow%3ACI)
 
 ## Installation
 
@@ -15,19 +14,19 @@ Make sure you have Node 10 or greater installed.
 Get the library:
 
 ```
-npm install extract-zip --save
+npm install @logflix/extract-zip --save
 ```
 
 Install the command line program:
 
 ```
-npm install extract-zip -g
+npm install @logflix/extract-zip -g
 ```
 
 ## JS API
 
 ```javascript
-const extract = require('extract-zip')
+import extract from '@logflix/extract-zip'
 
 async function main() {
   try {
