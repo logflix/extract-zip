@@ -44,6 +44,7 @@ jobs:
         with:
           files: ./coverage/lcov.info
           env_vars: CI_OS,NODE_VERSION
+          token: ${{ secrets.CODECOV_TOKEN }}
         env:
           CI_OS: ${{ matrix.os }}
           NODE_VERSION: ${{ matrix.node-version }}
