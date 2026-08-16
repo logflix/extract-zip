@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      id-token: write # Required for OIDC
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: latest
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false # never use caching in release builds
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: node --run lint
+      - name: Test
+        run: node --run test
+      - name: Publish to NPM
+        run: |
+          npm version --allow-same-version --no-git-tag-version ${{ github.ref_name }}
+          npm publish --provenance
