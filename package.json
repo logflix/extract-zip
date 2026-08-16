@@ -9,8 +9,13 @@
   ],
   "license": "BSD-2-Clause",
   "author": "max ogden",
-  "repository": "logflix/extract-zip",
-  "bin": "cli.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/logflix/extract-zip.git"
+  },
+  "bin": {
+    "extract-zip": "cli.js"
+  },
   "files": [
     "cli.js",
     "index.d.ts"
@@ -19,8 +24,7 @@
   "main": "index.js",
   "types": "index.d.ts",
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "scripts": {
     "ava": "ava",
