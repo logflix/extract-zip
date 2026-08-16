@@ -171,6 +171,13 @@ class Extractor {
 
     if (symlink) {
       const link = await getStream(readStream)
+      const linkTarget = path.resolve(path.dirname(dest), link)
+      const relativeLinkTarget = path.relative(this.opts.dir, linkTarget)
+
+      if (relativeLinkTarget.split(path.sep).includes('..') || path.isAbsolute(relativeLinkTarget)) {
+        throw new Error(`Out of bound symlink target "${link}" found while processing file ${entry.fileName}`)
+      }
+
       debug('creating symlink', link, dest)
       await fs.symlink(link, dest)
     } else {
